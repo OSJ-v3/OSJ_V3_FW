@@ -136,7 +136,7 @@ static void DryerStatusJudgment(float amps, int *cnt, int *m,
 			FAST_GPIO_SET(ledPin);
 			*currStatus = 0;
 			ESP_LOGI(TAG, "CH%d Dryer Started", ch);
-			osj_websocket_send_status(ch, 0);
+			osj_websocket_send_status(ch, 0, "DRY");
 		}
 		*m = 1;
 	} else {
@@ -152,7 +152,7 @@ static void DryerStatusJudgment(float amps, int *cnt, int *m,
 			*logFlag = false;
 			send_end_log(ch);
 			ESP_LOGI(TAG, "CH%d Dryer Ended", ch);
-			osj_websocket_send_status(ch, 1);
+			osj_websocket_send_status(ch, 1, "DRY");
 			*cnt = 1;
 			FAST_GPIO_CLEAR(ledPin);
 			*currStatus = 1;
@@ -227,7 +227,7 @@ static void StatusJudgment(float amps, int water, uint32_t flow, int *cnt,
 			FAST_GPIO_SET(ledPin);
 			*currStatus = 0;
 			ESP_LOGI(TAG, "CH%d Washer Started", ch);
-			osj_websocket_send_status(ch, 0);
+			osj_websocket_send_status(ch, 0, "WASH");
 		}
 		*m = 1;
 	} else {
@@ -245,7 +245,7 @@ static void StatusJudgment(float amps, int water, uint32_t flow, int *cnt,
 			*logFlag = false;
 			send_end_log(ch);
 			ESP_LOGI(TAG, "CH%d Washer Ended", ch);
-			osj_websocket_send_status(ch, 1);
+			osj_websocket_send_status(ch, 1, "WASH");
 			*cnt = 1;
 			FAST_GPIO_CLEAR(ledPin);
 			*currStatus = 1;
