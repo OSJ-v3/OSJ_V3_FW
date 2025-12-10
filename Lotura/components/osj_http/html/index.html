@@ -1,14 +1,349 @@
-<!DOCTYPE html>
+<!DOCTYPE HTML>
 <html>
 
 <head>
-    <title>Lotura Device Manager</title>
-    <link rel="stylesheet" href="style.css">
+    <title>%deviceName%</title>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <style>
+        body {
+            background-color: #f7f7f7;
+        }
+
+        #submit {
+            width: 120px;
+        }
+
+        #edit_path {
+            width: 250px;
+        }
+
+        #delete_path {
+            width: 250px;
+        }
+
+        #spacer_50 {
+            height: 50px;
+        }
+
+        #spacer_20 {
+            height: 20px;
+        }
+
+        table {
+            background-color: #dddddd;
+            border-collapse: collapse;
+            width: 650px;
+        }
+
+        td,
+        th {
+            border: 1px solid #dddddd;
+            text-align: left;
+            padding: 8px;
+        }
+
+        #first_td_th {
+            width: 400px;
+        }
+
+        tr:nth-child(even) {
+            background-color: #ffffff;
+        }
+
+        #format_notice {
+            color: #ff0000;
+        }
+
+        #left_div {
+            float: left;
+            box-sizing: border-box;
+            vertical-align: middle;
+            display: inline-block;
+        }
+
+        #right_div {
+            float: right;
+            box-sizing: border-box;
+            vertical-align: middle;
+            display: inline-block;
+        }
+
+        #wrap_div {
+            margin: auto;
+            text-align: center;
+        }
+    </style>
+    <script>
+        function validateFormUpdate() {
+            var inputElement = document.getElementById('update');
+            var files = inputElement.files;
+            if (files.length == 0) {
+                alert("File Not Selected");
+                return false;
+            }
+            var value = inputElement.value;
+            var dotIndex = value.lastIndexOf(".") + 1;
+            var valueExtension = value.substring(dotIndex);
+        }
+        function confirmFormat() {
+            var text = "Are you sure?";
+            if (confirm(text) == true) {
+                return true;
+            }
+            else {
+                return false;
+            }
+        }
+        function callSetDefaultVal() {
+            return true;
+        }
+    </script>
 </head>
 
 <body>
-    <h1>Lotura Device Status</h1>
-    <div id="status">Loading...</div>
+    <center>
+        <h2>%deviceName%</h2>
+        <div id="spacer_20"></div>
+        <table>
+            <td align="center" valign="top">
+                <center>
+                    <fieldset style="width: 700px;background-color: #f7f7f7;">
+                        <legend>Device INFO</legend>
+                        <table>
+                            <tr>
+                                <th scope="col">WiFi SSID</th>
+                                <td>%apSsid%</td>
+                            </tr>
+                            <tr>
+                                <th scope="col">RSSI</th>
+                                <td>%wifiRssi% (%wifiQuality%)</td>
+                            </tr>
+                            <tr>
+                                <th scope="col">Device IP</th>
+                                <td>%wifiIp%</td>
+                            </tr>
+                            <tr>
+                                <th scope="col">MAC</th>
+                                <td>%mac%</td>
+                            </tr>
+                            <tr>
+                                <th scope="col">RoomNo</th>
+                                <td>%roomNo%</td>
+                            </tr>
+                            <tr>
+                                <th scope="col">CH1</th>
+                                <td>%ch1DeviceNo%</td>
+                                <th>Enable</th>
+                                <td>%isCh1Live%</td>
+                            </tr>
+                            <tr>
+                                <th scope="col">Mode</th>
+                                <td>%ch1Mode%</td>
+                                <th></th>
+                                <td></td>
+                            </tr>
+                            <tr>
+                                <th scope="col">C_W, Flow, C_D</th>
+                                <td>%ch1CurrW%</td>
+                                <td>%ch1FlowW%</td>
+                                <td>%ch1CurrD%</td>
+                            </tr>
+                            <tr>
+                                <th scope="col">EndDelay_W, D</th>
+                                <td>%ch1EndDelayW%</td>
+                                <td>%ch1EndDelayD%</td>
+                                <td></td>
+                            </tr>
+                            <tr>
+                                <th scope="col">Curr, Water, Flow</th>
+                                <td>%ampsTrms1%</td>
+                                <td>%waterSensorData1%</td>
+                                <td>%lHour1%</td>
+                            </tr>
+                            <tr>
+                                <th scope="col">CH2</th>
+                                <td>%ch2DeviceNo%</td>
+                                <th>Enable</th>
+                                <td>%isCh2Live%</td>
+                            </tr>
+                            <tr>
+                                <th scope="col">Mode</th>
+                                <td>%ch2Mode%</td>
+                                <th></th>
+                                <td></td>
+                            </tr>
+                            <tr>
+                                <th scope="col">C_W, Flow, C_D</th>
+                                <td>%ch2CurrW%</td>
+                                <td>%ch2FlowW%</td>
+                                <td>%ch2CurrD%</td>
+                            </tr>
+                            <tr>
+                                <th scope="col">EndDelay_W, D</th>
+                                <td>%ch2EndDelayW%</td>
+                                <td>%ch2EndDelayD%</td>
+                                <td></td>
+                            </tr>
+                            <tr>
+                                <th scope="col">Curr, Water, Flow</th>
+                                <td>%ampsTrms2%</td>
+                                <td>%waterSensorData2%</td>
+                                <td>%lHour2%</td>
+                            </tr>
+                            <tr>
+                                <th scope="col">Flash Size</th>
+                                <td>%flashSize% KiB</td>
+                            </tr>
+                            <tr>
+                                <th scope="col">Heap Memory</th>
+                                <td>%heap% KiB Left</td>
+                            </tr>
+                            <tr>
+                                <th scope="col">F/W Build Date</th>
+                                <td>%buildVer%</td>
+                            </tr>
+                        </table>
+                    </fieldset>
+                </center>
+            </td>
+            <td align="center" valign="top">
+                <center>
+                    <table>
+                        <tr>
+                            <td>
+                                <center>
+                                    <fieldset style="width:325px;background-color: #f7f7f7;">
+                                        <legend>WiFi Setting</legend>
+                                        <form method="POST" action="/wifi">
+                                            <p>
+                                                <input type="text" id="WiFi_SSID" name="wifiSsid"
+                                                    placeholder="SSID"><br>
+                                                <input type="text" id="WiFi_PASS" name="wifiPass"
+                                                    placeholder="Password"><br>
+                                            <div id="spacer_10"></div>
+                                            </p>
+                                            <input type="submit" value="Submit">
+                                        </form>
+                                    </fieldset>
+                                </center>
+                            </td>
+                            <td>
+                                <center>
+                                    <fieldset style="width:325px;background-color: #f7f7f7;">
+                                        <legend>HTTP AUTH Setting</legend>
+                                        <form method="POST" action="/auth">
+                                            <p>
+                                                <input type="text" id="AUTH_ID" name="authId" placeholder="ID"><br>
+                                                <input type="text" id="AUTH_PASSWD" name="authPasswd"
+                                                    placeholder="Password"><br>
+                                            <div id="spacer_10"></div>
+                                            </p>
+                                            <input type="submit" value="Submit">
+                                        </form>
+                                    </fieldset>
+                                </center>
+                            </td>
+                        </tr>
+                        <tr></tr>
+                        <tr>
+                            <td>
+                                <center>
+                                    <fieldset style="width:325px;height:100px;background-color: #f7f7f7;">
+                                        <legend>CH1_Setting</legend>
+                                        <form method="POST" action="/CH1">
+                                            <p>
+                                                <select name="CH1">
+                                                    <option value="none" selected>Select Command</option>
+                                                    <option value="DeviceNo">DeviceNo</option>
+                                                    <option value="CurrentWash">CurrentWash</option>
+                                                    <option value="FlowWash">FlowWash</option>
+                                                    <option value="CurrentDry">CurrentDry</option>
+                                                    <option value="EndDelayWash">EndDelayWash</option>
+                                                    <option value="EndDelayDry">EndDelayDry</option>
+                                                    <option value="Enable">Enable</option>
+                                                </select>
+                                                <input type="text" id="Command" name="value" placeholder="value"><br>
+                                            <div id="spacer_10"></div>
+                                            </p>
+                                            <input type="submit" value="Submit">
+                                        </form>
+                                    </fieldset>
+                                </center>
+                            </td>
+                            <td>
+                                <center>
+                                    <fieldset style="width:325px;height:100px;background-color: #f7f7f7;">
+                                        <legend>CH2_Setting</legend>
+                                        <form method="POST" action="/CH2">
+                                            <p>
+                                                <select name="CH2">
+                                                    <option value="none" selected>Select Command</option>
+                                                    <option value="DeviceNo">DeviceNo</option>
+                                                    <option value="CurrentWash">CurrentWash</option>
+                                                    <option value="FlowWash">FlowWash</option>
+                                                    <option value="CurrentDry">CurrentDry</option>
+                                                    <option value="EndDelayWash">EndDelayWash</option>
+                                                    <option value="EndDelayDry">EndDelayDry</option>
+                                                    <option value="Enable">Enable</option>
+                                                </select>
+                                                <input type="text" id="Command" name="value" placeholder="value"><br>
+                                            <div id="spacer_10"></div>
+                                            </p>
+                                            <input type="submit" value="Submit">
+                                        </form>
+                                    </fieldset>
+                                </center>
+                            </td>
+                        </tr>
+                    </table>
+                    <div id="spacer_20"></div>
+                    <fieldset style="width:700px;background-color: #f7f7f7;">
+                        <legend>Room</legend>
+                        <form method="POST" action="/roomno">
+                            <input type="text" id="RoomNo" name="roomNo" placeholder="RoomNo"><br>
+                            <div id="spacer_10"></div>
+                            <input type="submit" value="Submit">
+                        </form>
+                    </fieldset>
+                    <div id="spacer_20"></div>
+                    <fieldset style="width: 700px;background-color: #f7f7f7;">
+                        <legend>Firmware Update</legend>
+                        <div id="spacer_20"></div>
+                        <form method="POST" action="/update" enctype="multipart/form-data">
+                            <table>
+                                <tr>
+                                    <td id="first_td_th">
+                                        <input type="file" id="update" name="update">
+                                    </td>
+                                    <td>
+                                        <input type="submit" id="submit" value="Start"
+                                            onclick="return validateFormUpdate()">
+                                    </td>
+                                </tr>
+                            </table>
+                        </form>
+                        <div id="spacer_20"></div>
+                    </fieldset>
+                    <div id="spacer_20"></div>
+                    <fieldset style="width: 700px;background-color: #f7f7f7;">
+                        <legend>Load Variable From NVS</legend>
+                        <form method="GET" action="/SetDefaultVal" enctype="multipart/form-data">
+                            <input type="submit" id="submit" value="LOAD" onclick="return callSetDefaultVal()">
+                        </form>
+                    </fieldset>
+                    <div id="spacer_20"></div>
+                    <fieldset style="width: 700px;background-color: #f7f7f7;">
+                        <legend>Device Reboot</legend>
+                        <form method="GET" action="/reboot" enctype="multipart/form-data">
+                            <input type="submit" id="submit" value="REBOOT" onclick="return confirmFormat()">
+                        </form>
+                    </fieldset>
+                </center>
+            </td>
+        </table>
+    </center>
+    <iframe style="display:none" name="self_page"></iframe>
 </body>
 
 </html>
