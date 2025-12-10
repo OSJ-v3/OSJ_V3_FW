@@ -4,6 +4,8 @@
 #include <stdbool.h>
 #include <stdint.h>
 
+#define DEVICE_ID_CH_1 101
+#define DEVICE_ID_CH_2 102
 
 typedef enum { MODE_WASHER = 0, MODE_DRYER = 1 } device_mode_t;
 

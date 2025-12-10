@@ -1,5 +1,6 @@
 #include "osj_websocket.h"
 #include "cJSON.h"
+#include "common_defs.h"
 #include "esp_log.h"
 #include "esp_websocket_client.h"
 #include "mbedtls/base64.h"
@@ -9,17 +10,20 @@
 #include <string.h>
 
 static const char *TAG = "OSJ_WS";
-static esp_websocket_client_handle_t client = NULL;
+static esp_websocket_client_handle_t client1 = NULL;
+static esp_websocket_client_handle_t client2 = NULL;
 
 static void websocket_event_handler(void *handler_args, esp_event_base_t base,
 									int32_t event_id, void *event_data) {
 	esp_websocket_event_data_t *data = (esp_websocket_event_data_t *)event_data;
+	int client_num = (int)handler_args;
+
 	switch (event_id) {
 	case WEBSOCKET_EVENT_CONNECTED:
-		ESP_LOGI(TAG, "WEBSOCKET_EVENT_CONNECTED");
+		ESP_LOGI(TAG, "Client %d: WEBSOCKET_EVENT_CONNECTED", client_num);
 		break;
 	case WEBSOCKET_EVENT_DISCONNECTED:
-		ESP_LOGI(TAG, "WEBSOCKET_EVENT_DISCONNECTED");
+		ESP_LOGI(TAG, "Client %d: WEBSOCKET_EVENT_DISCONNECTED", client_num);
 		break;
 	case WEBSOCKET_EVENT_DATA:
 		if (data->op_code == WS_TRANSPORT_OPCODES_TEXT) {
@@ -30,7 +34,8 @@ static void websocket_event_handler(void *handler_args, esp_event_base_t base,
 					cJSON *title = cJSON_GetObjectItem(json, "title");
 					if (cJSON_IsString(title) &&
 						strcmp(title->valuestring, "GetData") == 0) {
-						ESP_LOGI(TAG, "Received GetData request");
+						ESP_LOGI(TAG, "Client %d: Received GetData request",
+								 client_num);
 					}
 					cJSON_Delete(json);
 				}
@@ -39,13 +44,38 @@ static void websocket_event_handler(void *handler_args, esp_event_base_t base,
 		}
 		break;
 	case WEBSOCKET_EVENT_ERROR:
-		ESP_LOGI(TAG, "WEBSOCKET_EVENT_ERROR");
+		ESP_LOGI(TAG, "Client %d: WEBSOCKET_EVENT_ERROR", client_num);
 		break;
 	}
 }
 
+static esp_websocket_client_handle_t
+start_client(int channel, const char *auth_b64, const char *room) {
+	char headers[512];
+	int device_id = (channel == 1) ? DEVICE_ID_CH_1 : DEVICE_ID_CH_2;
+
+	snprintf(headers, sizeof(headers),
+			 "Authorization: Basic %s\r\n"
+			 "HWID: %d\r\n"
+			 "ROOM: %s\r\n",
+			 auth_b64, device_id, room);
+
+	esp_websocket_client_config_t websocket_cfg = {};
+	websocket_cfg.uri = "wss://lotura-prod.xquare.app/device";
+	websocket_cfg.headers = headers;
+	websocket_cfg.network_timeout_ms = 10000;
+	websocket_cfg.ping_interval_sec = 10;
+
+	esp_websocket_client_handle_t client =
+		esp_websocket_client_init(&websocket_cfg);
+	esp_websocket_register_events(client, WEBSOCKET_EVENT_ANY,
+								  websocket_event_handler, (void *)channel);
+	esp_websocket_client_start(client);
+	return client;
+}
+
 void osj_websocket_start(void) {
-	ESP_LOGI(TAG, "Starting WebSocket Client...");
+	ESP_LOGI(TAG, "Starting WebSocket Clients...");
 
 	char auth_id[32], auth_pass[32], room[16];
 	osj_nvs_get_str("authId", auth_id, sizeof(auth_id), "");
@@ -59,35 +89,21 @@ void osj_websocket_start(void) {
 	mbedtls_base64_encode(auth_b64, sizeof(auth_b64), &out_len,
 						  (unsigned char *)auth_str, strlen(auth_str));
 
-	char headers[512];
-	snprintf(headers, sizeof(headers),
-			 "Authorization: Basic %s\r\n"
-			 "HWID: 0\r\n"
-			 "CH1: 1\r\n"
-			 "CH2: 2\r\n"
-			 "ROOM: %s\r\n",
-			 auth_b64, room);
-
-	esp_websocket_client_config_t websocket_cfg = {};
-	websocket_cfg.uri = "wss://lotura-prod.xquare.app/device";
-	websocket_cfg.headers = headers;
-	websocket_cfg.network_timeout_ms = 10000;
-	websocket_cfg.ping_interval_sec = 10;
-
-	client = esp_websocket_client_init(&websocket_cfg);
-	esp_websocket_register_events(client, WEBSOCKET_EVENT_ANY,
-								  websocket_event_handler, (void *)client);
-	esp_websocket_client_start(client);
+	client1 = start_client(1, (char *)auth_b64, room);
+	client2 = start_client(2, (char *)auth_b64, room);
 }
 
-void osj_websocket_send_status(int channel, int status) {
+void osj_websocket_send_status(int channel, int status,
+							   const char *device_type) {
+	esp_websocket_client_handle_t client = (channel == 1) ? client1 : client2;
 	if (!client || !esp_websocket_client_is_connected(client))
 		return;
 
+	int device_id = (channel == 1) ? DEVICE_ID_CH_1 : DEVICE_ID_CH_2;
+
 	cJSON *root = cJSON_CreateObject();
-	cJSON_AddStringToObject(root, "title", "Update");
-	cJSON_AddStringToObject(root, "id", (channel == 1) ? "1" : "2");
-	cJSON_AddNumberToObject(root, "type", 0);
+	cJSON_AddNumberToObject(root, "id", device_id);
+	cJSON_AddStringToObject(root, "device_type", device_type);
 	cJSON_AddNumberToObject(root, "state", status);
 
 	char *json_str = cJSON_PrintUnformatted(root);
@@ -100,12 +116,15 @@ void osj_websocket_send_status(int channel, int status) {
 }
 
 void osj_websocket_send_log(int channel, const char *log_json) {
+	esp_websocket_client_handle_t client = (channel == 1) ? client1 : client2;
 	if (!client || !esp_websocket_client_is_connected(client))
 		return;
 
+	int device_id = (channel == 1) ? DEVICE_ID_CH_1 : DEVICE_ID_CH_2;
+
 	cJSON *root = cJSON_CreateObject();
 	cJSON_AddStringToObject(root, "title", "Log");
-	cJSON_AddStringToObject(root, "id", (channel == 1) ? "1" : "2");
+	cJSON_AddNumberToObject(root, "id", device_id);
 
 	cJSON *log_obj = cJSON_Parse(log_json);
 	if (log_obj) {
