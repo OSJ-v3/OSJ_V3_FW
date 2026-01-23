@@ -74,10 +74,11 @@ uint32_t osj_sensor_get_flow(int channel) {
 }
 
 void osj_sensor_reset_flow(int channel) {
-	if (channel == 1)
-		flow_freq_1 = 0;
-	else
-		flow_freq_2 = 0;
+    // Cumulative counter logic: do not reset.
+	// if (channel == 1)
+	// 	flow_freq_1 = 0;
+	// else
+	// 	flow_freq_2 = 0;
 }
 
 int osj_sensor_get_drain(int channel) {

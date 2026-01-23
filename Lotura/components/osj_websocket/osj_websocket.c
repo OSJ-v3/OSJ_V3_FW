@@ -10,8 +10,8 @@
 #include <string.h>
 
 static const char *TAG = "OSJ_WS";
-static esp_websocket_client_handle_t client1 = NULL;
-static esp_websocket_client_handle_t client2 = NULL;
+
+static esp_websocket_client_handle_t client = NULL;
 
 static void websocket_event_handler(void *handler_args, esp_event_base_t base,
 									int32_t event_id, void *event_data) {
@@ -44,15 +44,18 @@ static void websocket_event_handler(void *handler_args, esp_event_base_t base,
 		}
 		break;
 	case WEBSOCKET_EVENT_ERROR:
-		ESP_LOGI(TAG, "Client %d: WEBSOCKET_EVENT_ERROR", client_num);
+		ESP_LOGI(TAG, "Client: WEBSOCKET_EVENT_ERROR");
 		break;
 	}
 }
 
 static esp_websocket_client_handle_t
-start_client(int channel, const char *auth_b64, const char *room) {
+start_client(const char *auth_b64, const char *room) {
 	char headers[512];
-	int device_id = (channel == 1) ? DEVICE_ID_CH_1 : DEVICE_ID_CH_2;
+    // Use CH1 ID as the primary ID for the connection header, or just generic. 
+    // The user said: "id 필드에 채널 번호(101 or 102)를 넣어서".
+    // I will use DEVICE_ID_CH_1 for the connection header as a representative.
+	int device_id = DEVICE_ID_CH_1;
 
 	snprintf(headers, sizeof(headers),
 			 "Authorization: Basic %s\r\n"
@@ -69,7 +72,7 @@ start_client(int channel, const char *auth_b64, const char *room) {
 	esp_websocket_client_handle_t client =
 		esp_websocket_client_init(&websocket_cfg);
 	esp_websocket_register_events(client, WEBSOCKET_EVENT_ANY,
-								  websocket_event_handler, (void *)channel);
+								  websocket_event_handler, (void *)0);
 	esp_websocket_client_start(client);
 	return client;
 }
@@ -89,13 +92,11 @@ void osj_websocket_start(void) {
 	mbedtls_base64_encode(auth_b64, sizeof(auth_b64), &out_len,
 						  (unsigned char *)auth_str, strlen(auth_str));
 
-	client1 = start_client(1, (char *)auth_b64, room);
-	client2 = start_client(2, (char *)auth_b64, room);
+	client = start_client((char *)auth_b64, room);
 }
 
 void osj_websocket_send_status(int channel, int status,
 							   const char *device_type) {
-	esp_websocket_client_handle_t client = (channel == 1) ? client1 : client2;
 	if (!client || !esp_websocket_client_is_connected(client))
 		return;
 
@@ -116,7 +117,6 @@ void osj_websocket_send_status(int channel, int status,
 }
 
 void osj_websocket_send_log(int channel, const char *log_json) {
-	esp_websocket_client_handle_t client = (channel == 1) ? client1 : client2;
 	if (!client || !esp_websocket_client_is_connected(client))
 		return;
 

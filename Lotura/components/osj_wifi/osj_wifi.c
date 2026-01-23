@@ -5,12 +5,20 @@
 #include "freertos/FreeRTOS.h"
 #include "freertos/event_groups.h"
 #include "freertos/task.h"
+#include "freertos/timers.h"
 #include "osj_nvs.h"
 #include <string.h>
 
 static const char *TAG = "OSJ_WIFI";
 static bool s_is_connected = false;
 static int s_retry_num = 0;
+static TimerHandle_t s_retry_timer = NULL;
+
+static void retry_timer_callback(TimerHandle_t xTimer) {
+    ESP_LOGI(TAG, "Retry timer expired, connecting to AP...");
+    s_retry_num = 0;
+    esp_wifi_connect();
+}
 
 #define DEFAULT_SSID "OSJ_WIFI"
 #define DEFAULT_PASS "12345678"
@@ -27,10 +35,11 @@ static void event_handler(void *arg, esp_event_base_t event_base,
 			s_retry_num++;
 			ESP_LOGI(TAG, "retry to connect to the AP");
 		} else {
-			ESP_LOGI(TAG, "connect to the AP fail");
-			vTaskDelay(pdMS_TO_TICKS(5000));
-			s_retry_num = 0;
-			esp_wifi_connect();
+			ESP_LOGI(TAG, "connect to the AP fail, starting retry timer");
+			// Replace blocking delay with timer
+            if (s_retry_timer != NULL) {
+                xTimerStart(s_retry_timer, 0);
+            }
 		}
 	} else if (event_base == IP_EVENT && event_id == IP_EVENT_STA_GOT_IP) {
 		ip_event_got_ip_t *event = (ip_event_got_ip_t *)event_data;
@@ -42,6 +51,10 @@ static void event_handler(void *arg, esp_event_base_t event_base,
 
 void osj_wifi_init(void) {
 	ESP_LOGI(TAG, "Initializing WiFi...");
+
+    // Create retry timer (5000ms, one-shot)
+    s_retry_timer = xTimerCreate("wifi_retry", pdMS_TO_TICKS(5000),
+                                 pdFALSE, (void *)0, retry_timer_callback);
 
 	wifi_init_config_t cfg = WIFI_INIT_CONFIG_DEFAULT();
 	ESP_ERROR_CHECK(esp_wifi_init(&cfg));

@@ -11,8 +11,12 @@
 #include "osj_websocket.h"
 #include <math.h>
 #include <string.h>
+#include "osj_config.h"
 
 static const char *TAG = "LAUNDRY_CORE";
+
+
+// Removed define: #define HYSTERESIS_MARGIN 0.05f
 
 static float ch1CurrW = 0.2, ch2CurrW = 0.2;
 static int ch1FlowW = 50, ch2FlowW = 50;
@@ -47,6 +51,9 @@ static int ch1Cnt = 1, ch2Cnt = 1;
 static int m1 = 0, m2 = 0;
 static int seCnt1 = 0, seCnt2 = 0;
 static int64_t sePrevMillis1 = 0, sePrevMillis2 = 0;
+
+static uint32_t lastFlow1 = 0, lastFlow2 = 0;
+static int64_t lastFlowCalcTime = 0;
 
 static int64_t millis() { return esp_timer_get_time() / 1000; }
 
@@ -111,7 +118,8 @@ static void DryerStatusJudgment(float amps, int *cnt, int *m,
 	int *currStatus = (ch == 1) ? &ch1CurrStatus : &ch2CurrStatus;
 	int ledPin = (ch == 1) ? PIN_CH1_LED : PIN_CH2_LED;
 
-	if (amps < currD && *logFlag) {
+    // Hysteresis: Stop condition (amps < threshold - margin)
+	if (amps < (currD - sys_config.hysteresisMargin) && *logFlag) {
 		if (*logFlagC == 1) {
 			*logFlagC = 0;
 			send_log_entry(ch, "C", 0, *logMillis);
@@ -119,7 +127,8 @@ static void DryerStatusJudgment(float amps, int *cnt, int *m,
 		}
 	}
 
-	if (amps > currD) {
+    // Hysteresis: Start condition (amps > threshold + margin)
+	if (amps > (currD + sys_config.hysteresisMargin)) {
 		if (*logFlag) {
 			if (*logFlagC == 0) {
 				*logFlagC = 1;
@@ -179,19 +188,20 @@ static void StatusJudgment(float amps, int water, uint32_t flow, int *cnt,
 	int *currStatus = (ch == 1) ? &ch1CurrStatus : &ch2CurrStatus;
 	int ledPin = (ch == 1) ? PIN_CH1_LED : PIN_CH2_LED;
 
-	if ((amps > currW || water || flow > flowW) && *seCnt == 0) {
+    // Hysteresis: Start (amps > currW + margin)
+	if ((amps > (currW + sys_config.hysteresisMargin) || water || flow > flowW) && *seCnt == 0) {
 		*seCnt = 1;
 		*sePrev = millis();
-	} else if ((amps < currW && !water && flow < flowW) && *seCnt == 1) {
+	} else if ((amps < (currW - sys_config.hysteresisMargin) && !water && flow < flowW) && *seCnt == 1) {
 		*seCnt = 0;
 	}
 
 	if (*logFlag) {
-		if (amps > currW && *logFlagC == 0) {
+		if (amps > (currW + sys_config.hysteresisMargin) && *logFlagC == 0) {
 			*logFlagC = 1;
 			send_log_entry(ch, "C", 1, *logMillis);
 			(*logCnt)++;
-		} else if (amps < currW && *logFlagC == 1) {
+		} else if (amps < (currW - sys_config.hysteresisMargin) && *logFlagC == 1) {
 			*logFlagC = 0;
 			send_log_entry(ch, "C", 0, *logMillis);
 			(*logCnt)++;
@@ -256,29 +266,53 @@ static void StatusJudgment(float amps, int water, uint32_t flow, int *cnt,
 void laundry_core_task(void *pvParameters) {
 	ESP_LOGI(TAG, "Laundry Core Task Started");
 
-	ch1CurrW = osj_nvs_get_float("ch1CurrW", 0.2);
-	ch2CurrW = osj_nvs_get_float("ch2CurrW", 0.2);
-	ch1FlowW = osj_nvs_get_uint("ch1FlowW", 50);
-	ch2FlowW = osj_nvs_get_uint("ch2FlowW", 50);
-	ch1CurrD = osj_nvs_get_float("ch1CurrD", 0.5);
-	ch2CurrD = osj_nvs_get_float("ch2CurrD", 0.5);
-	ch1EndDelayW = osj_nvs_get_uint("ch1EndDelayW", 10) * 10000;
-
-	ch1EndDelayW = osj_nvs_get_uint("ch1EndDelayW", 100000);
-	ch2EndDelayW = osj_nvs_get_uint("ch2EndDelayW", 100000);
-	ch1EndDelayD = osj_nvs_get_uint("ch1EndDelayD", 10000);
-	ch2EndDelayD = osj_nvs_get_uint("ch2EndDelayD", 10000);
-
 	while (1) {
+        // Update from config (support runtime changes)
+        osj_config_lock();
+        ch1CurrW = sys_config.ch1CurrW;
+        ch2CurrW = sys_config.ch2CurrW;
+        ch1FlowW = sys_config.ch1FlowW;
+        ch2FlowW = sys_config.ch2FlowW;
+        ch1CurrD = sys_config.ch1CurrD;
+        ch2CurrD = sys_config.ch2CurrD;
+        ch1EndDelayW = sys_config.ch1EndDelayW;
+        ch2EndDelayW = sys_config.ch2EndDelayW;
+        ch1EndDelayD = sys_config.ch1EndDelayD;
+        ch2EndDelayD = sys_config.ch2EndDelayD;
+        osj_config_unlock();
+
 		ampsTrms1 = osj_sensor_get_rms(1);
 		ampsTrms2 = osj_sensor_get_rms(2);
 
-		uint32_t freq1 = osj_sensor_get_flow(1);
-		uint32_t freq2 = osj_sensor_get_flow(2);
-		lHour1 = (freq1 * 60) / 7.5;
-		lHour2 = (freq2 * 60) / 7.5;
-		osj_sensor_reset_flow(1);
-		osj_sensor_reset_flow(2);
+		ampsTrms1 = osj_sensor_get_rms(1);
+		ampsTrms2 = osj_sensor_get_rms(2);
+
+		// Calculate Flow Rate every 1000ms
+		int64_t now = millis();
+		if (now - lastFlowCalcTime >= 1000) {
+			uint32_t currFlow1 = osj_sensor_get_flow(1);
+			uint32_t currFlow2 = osj_sensor_get_flow(2);
+			
+			// Calculate pulses per second (Hz) -> then to L/Hour
+			// Formula from original code: (freq * 60) / 7.5
+			// Note: Original code used 7.5 constant.
+			// Pulses in delta time (approx 1s)
+			uint32_t delta1 = currFlow1 - lastFlow1;
+			uint32_t delta2 = currFlow2 - lastFlow2;
+			
+			// Adjust for actual time difference if needed, but 1s is close enough for display
+			// If we want precision: rate = (delta / (time_diff_sec)) 
+			
+			lHour1 = (delta1 * 60) / 7.5; 
+			lHour2 = (delta2 * 60) / 7.5;
+
+			lastFlow1 = currFlow1;
+			lastFlow2 = currFlow2;
+			lastFlowCalcTime = now;
+		}
+
+		// Removed per-loop reset: osj_sensor_reset_flow(1);
+		// Removed per-loop reset: osj_sensor_reset_flow(2);
 
 		waterSensorData1 = osj_sensor_get_drain(1);
 		waterSensorData2 = osj_sensor_get_drain(2);
@@ -319,4 +353,9 @@ char *laundry_core_get_status_json(void) {
 	char *json_str = cJSON_PrintUnformatted(root);
 	cJSON_Delete(root);
 	return json_str;
+}
+
+uint32_t laundry_core_get_lHour(int channel) {
+	if (channel == 1) return lHour1;
+	return lHour2;
 }

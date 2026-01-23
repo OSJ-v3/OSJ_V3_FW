@@ -1,6 +1,8 @@
 #ifndef LAUNDRY_CORE_H
 #define LAUNDRY_CORE_H
 
+#include <stdint.h>
+
 /**
  * @brief 세탁/건조 로직을 수행하는 메인 태스크.
  * @param pvParameters 태스크 파라미터 (사용 안함)
@@ -12,5 +14,6 @@ void laundry_core_task(void *pvParameters);
  * @return JSON 문자열 (호출자가 free해야 함)
  */
 char *laundry_core_get_status_json(void);
+uint32_t laundry_core_get_lHour(int channel);
 
 #endif

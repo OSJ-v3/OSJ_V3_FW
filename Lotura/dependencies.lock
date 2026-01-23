@@ -12,7 +12,7 @@ dependencies:
   idf:
     source:
       type: idf
-    version: 5.3.1
+    version: 5.5.1
 direct_dependencies:
 - espressif/esp_websocket_client
 manifest_hash: e6a147a481574247274fad850d158a6f32f7714832cfde0e93d3b71c5a68ccfc
