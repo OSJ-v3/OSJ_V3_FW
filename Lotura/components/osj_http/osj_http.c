@@ -23,7 +23,6 @@ extern const char index_html_end[] asm("_binary_index_html_end");
 
 #include "laundry_core.h"
 
-// Helper to send a chunk of data
 static esp_err_t send_chunk(httpd_req_t *req, const char *str) {
 	return httpd_resp_send_chunk(req, str, strlen(str));
 }
@@ -41,7 +40,6 @@ static esp_err_t root_get_handler(httpd_req_t *req) {
 	osj_wifi_get_mac(mac);
 	int8_t rssi = osj_wifi_get_rssi();
 
-    // Use sys_config
     osj_config_lock();
 	strncpy(ssid, sys_config.apSsid, sizeof(ssid));
 	strncpy(room, sys_config.roomNo, sizeof(room));

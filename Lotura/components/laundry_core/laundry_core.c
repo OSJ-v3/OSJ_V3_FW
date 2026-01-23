@@ -16,8 +16,6 @@
 static const char *TAG = "LAUNDRY_CORE";
 
 
-// Removed define: #define HYSTERESIS_MARGIN 0.05f
-
 static float ch1CurrW = 0.2, ch2CurrW = 0.2;
 static int ch1FlowW = 50, ch2FlowW = 50;
 static float ch1CurrD = 0.5, ch2CurrD = 0.5;
@@ -118,7 +116,7 @@ static void DryerStatusJudgment(float amps, int *cnt, int *m,
 	int *currStatus = (ch == 1) ? &ch1CurrStatus : &ch2CurrStatus;
 	int ledPin = (ch == 1) ? PIN_CH1_LED : PIN_CH2_LED;
 
-    // Hysteresis: Stop condition (amps < threshold - margin)
+
 	if (amps < (currD - sys_config.hysteresisMargin) && *logFlag) {
 		if (*logFlagC == 1) {
 			*logFlagC = 0;
@@ -127,7 +125,7 @@ static void DryerStatusJudgment(float amps, int *cnt, int *m,
 		}
 	}
 
-    // Hysteresis: Start condition (amps > threshold + margin)
+
 	if (amps > (currD + sys_config.hysteresisMargin)) {
 		if (*logFlag) {
 			if (*logFlagC == 0) {
@@ -188,7 +186,7 @@ static void StatusJudgment(float amps, int water, uint32_t flow, int *cnt,
 	int *currStatus = (ch == 1) ? &ch1CurrStatus : &ch2CurrStatus;
 	int ledPin = (ch == 1) ? PIN_CH1_LED : PIN_CH2_LED;
 
-    // Hysteresis: Start (amps > currW + margin)
+
 	if ((amps > (currW + sys_config.hysteresisMargin) || water || flow > flowW) && *seCnt == 0) {
 		*seCnt = 1;
 		*sePrev = millis();
@@ -267,7 +265,7 @@ void laundry_core_task(void *pvParameters) {
 	ESP_LOGI(TAG, "Laundry Core Task Started");
 
 	while (1) {
-        // Update from config (support runtime changes)
+
         osj_config_lock();
         ch1CurrW = sys_config.ch1CurrW;
         ch2CurrW = sys_config.ch2CurrW;
@@ -287,21 +285,14 @@ void laundry_core_task(void *pvParameters) {
 		ampsTrms1 = osj_sensor_get_rms(1);
 		ampsTrms2 = osj_sensor_get_rms(2);
 
-		// Calculate Flow Rate every 1000ms
+
 		int64_t now = millis();
 		if (now - lastFlowCalcTime >= 1000) {
 			uint32_t currFlow1 = osj_sensor_get_flow(1);
 			uint32_t currFlow2 = osj_sensor_get_flow(2);
 			
-			// Calculate pulses per second (Hz) -> then to L/Hour
-			// Formula from original code: (freq * 60) / 7.5
-			// Note: Original code used 7.5 constant.
-			// Pulses in delta time (approx 1s)
 			uint32_t delta1 = currFlow1 - lastFlow1;
 			uint32_t delta2 = currFlow2 - lastFlow2;
-			
-			// Adjust for actual time difference if needed, but 1s is close enough for display
-			// If we want precision: rate = (delta / (time_diff_sec)) 
 			
 			lHour1 = (delta1 * 60) / 7.5; 
 			lHour2 = (delta2 * 60) / 7.5;
@@ -311,8 +302,7 @@ void laundry_core_task(void *pvParameters) {
 			lastFlowCalcTime = now;
 		}
 
-		// Removed per-loop reset: osj_sensor_reset_flow(1);
-		// Removed per-loop reset: osj_sensor_reset_flow(2);
+
 
 		waterSensorData1 = osj_sensor_get_drain(1);
 		waterSensorData2 = osj_sensor_get_drain(2);

@@ -36,7 +36,6 @@ static void event_handler(void *arg, esp_event_base_t event_base,
 			ESP_LOGI(TAG, "retry to connect to the AP");
 		} else {
 			ESP_LOGI(TAG, "connect to the AP fail, starting retry timer");
-			// Replace blocking delay with timer
             if (s_retry_timer != NULL) {
                 xTimerStart(s_retry_timer, 0);
             }
@@ -52,7 +51,6 @@ static void event_handler(void *arg, esp_event_base_t event_base,
 void osj_wifi_init(void) {
 	ESP_LOGI(TAG, "Initializing WiFi...");
 
-    // Create retry timer (5000ms, one-shot)
     s_retry_timer = xTimerCreate("wifi_retry", pdMS_TO_TICKS(5000),
                                  pdFALSE, (void *)0, retry_timer_callback);
 

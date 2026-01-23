@@ -52,9 +52,6 @@ static void websocket_event_handler(void *handler_args, esp_event_base_t base,
 static esp_websocket_client_handle_t
 start_client(const char *auth_b64, const char *room) {
 	char headers[512];
-    // Use CH1 ID as the primary ID for the connection header, or just generic. 
-    // The user said: "id 필드에 채널 번호(101 or 102)를 넣어서".
-    // I will use DEVICE_ID_CH_1 for the connection header as a representative.
 	int device_id = DEVICE_ID_CH_1;
 
 	snprintf(headers, sizeof(headers),

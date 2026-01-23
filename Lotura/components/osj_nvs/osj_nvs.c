@@ -50,7 +50,7 @@ void osj_nvs_init(void) {
     sys_config.ch1CurrD = osj_nvs_get_float("ch1CurrD", 0.5);
     sys_config.ch2CurrD = osj_nvs_get_float("ch2CurrD", 0.5);
     
-    sys_config.ch1EndDelayW = osj_nvs_get_uint("ch1EndDelayW", 100000); // Correct default
+    sys_config.ch1EndDelayW = osj_nvs_get_uint("ch1EndDelayW", 100000);
     sys_config.ch2EndDelayW = osj_nvs_get_uint("ch2EndDelayW", 100000);
     sys_config.ch1EndDelayD = osj_nvs_get_uint("ch1EndDelayD", 10000);
     sys_config.ch2EndDelayD = osj_nvs_get_uint("ch2EndDelayD", 10000);
@@ -71,7 +71,7 @@ void osj_nvs_set_str(const char *key, const char *value) {
 	err = nvs_set_str(my_handle, key, value);
 	if (err == ESP_OK) {
 		nvs_commit(my_handle);
-        // Cache update
+
         osj_config_lock();
         if (strcmp(key, "apSsid") == 0) strncpy(sys_config.apSsid, value, sizeof(sys_config.apSsid));
         else if (strcmp(key, "apPasswd") == 0) strncpy(sys_config.apPasswd, value, sizeof(sys_config.apPasswd));
@@ -108,11 +108,10 @@ void osj_nvs_set_float(const char *key, float value) {
 	if (err != ESP_OK)
 		return;
 
-	// Store float as blob
 	err = nvs_set_blob(my_handle, key, &value, sizeof(float));
 	if (err == ESP_OK) {
 		nvs_commit(my_handle);
-        // Cache update
+
         osj_config_lock();
         if (strcmp(key, "ch1CurrW") == 0) sys_config.ch1CurrW = value;
         else if (strcmp(key, "ch2CurrW") == 0) sys_config.ch2CurrW = value;
@@ -150,7 +149,6 @@ void osj_nvs_set_uint(const char *key, uint32_t value) {
 	err = nvs_set_u32(my_handle, key, value);
 	if (err == ESP_OK) {
 		nvs_commit(my_handle);
-        // Cache update
         osj_config_lock();
         if (strcmp(key, "ch1FlowW") == 0) sys_config.ch1FlowW = value;
         else if (strcmp(key, "ch2FlowW") == 0) sys_config.ch2FlowW = value;
