@@ -8,8 +8,10 @@
 #include "osj_nvs.h"
 #include "osj_sensor.h"
 #include "osj_wifi.h"
+#include "osj_websocket.h"
 #include "esp_ota_ops.h"
 #include "esp_partition.h"
+#include "esp_timer.h"
 #include <stdlib.h>
 #include <string.h>
 
@@ -261,6 +263,44 @@ static esp_err_t reboot_get_handler(httpd_req_t *req) {
 }
 
 static esp_err_t ch1_post_handler(httpd_req_t *req) {
+	static int64_t last_update_time = 0;
+	if (esp_timer_get_time() - last_update_time < 1000000) {
+		ESP_LOGW(TAG, "Too many requests. Ignoring update.");
+		// Respond with 429 Too Many Requests or equivalent logic
+		httpd_resp_set_status(req, "429 Too Many Requests");
+		httpd_resp_send(req, "Too many requests", HTTPD_RESP_USE_STRLEN);
+		return ESP_FAIL;
+	}
+
+	char buf[100];
+	int ret, remaining = req->content_len;
+
+	if (remaining >= sizeof(buf)) {
+		httpd_resp_send_500(req);
+		return ESP_FAIL;
+	}
+	ret = httpd_req_recv(req, buf, remaining);
+	if (ret <= 0) {
+		if (ret == HTTPD_SOCK_ERR_TIMEOUT)
+			httpd_resp_send_408(req);
+		return ESP_FAIL;
+	}
+	buf[ret] = '\0';
+
+	char *id_ptr = strstr(buf, "ch1DeviceNo=");
+	if (id_ptr) {
+		id_ptr += 12; 
+		char *end = strchr(id_ptr, '&');
+		if (end)
+			*end = '\0';
+
+		ESP_LOGI(TAG, "Updating CH1 Device ID to: %s", id_ptr);
+		osj_nvs_set_str("ch1DeviceNo", id_ptr);
+		
+		last_update_time = esp_timer_get_time();
+		osj_websocket_restart();
+	}
+
 	httpd_resp_set_status(req, "303 See Other");
 	httpd_resp_set_hdr(req, "Location", "/");
 	httpd_resp_send(req, NULL, 0);

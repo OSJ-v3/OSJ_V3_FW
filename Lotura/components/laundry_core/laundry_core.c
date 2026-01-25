@@ -282,8 +282,7 @@ void laundry_core_task(void *pvParameters) {
 		ampsTrms1 = osj_sensor_get_rms(1);
 		ampsTrms2 = osj_sensor_get_rms(2);
 
-		ampsTrms1 = osj_sensor_get_rms(1);
-		ampsTrms2 = osj_sensor_get_rms(2);
+
 
 
 		int64_t now = millis();

@@ -3,13 +3,18 @@
 #include "common_defs.h"
 #include "esp_log.h"
 #include "esp_websocket_client.h"
+#include "esp_crt_bundle.h"
 #include "mbedtls/base64.h"
 #include "osj_nvs.h"
 #include "osj_wifi.h"
 #include <stdio.h>
 #include <string.h>
+#include <stdlib.h>
+#include <stdbool.h>
+#include "osj_config.h"
 
 static const char *TAG = "OSJ_WS";
+static bool is_restarting = false;
 
 static esp_websocket_client_handle_t client = NULL;
 
@@ -52,7 +57,15 @@ static void websocket_event_handler(void *handler_args, esp_event_base_t base,
 static esp_websocket_client_handle_t
 start_client(const char *auth_b64, const char *room) {
 	char headers[512];
-	int device_id = DEVICE_ID_CH_1;
+	
+	osj_config_lock();
+	int device_id = atoi(sys_config.ch1DeviceNo);
+	osj_config_unlock();
+
+	if (device_id == 1) {
+		ESP_LOGW(TAG, "Device ID is default (1). Aborting connection.");
+		return NULL;
+	}
 
 	snprintf(headers, sizeof(headers),
 			 "Authorization: Basic %s\r\n"
@@ -65,6 +78,8 @@ start_client(const char *auth_b64, const char *room) {
 	websocket_cfg.headers = headers;
 	websocket_cfg.network_timeout_ms = 10000;
 	websocket_cfg.ping_interval_sec = 10;
+
+	websocket_cfg.crt_bundle_attach = esp_crt_bundle_attach;
 
 	esp_websocket_client_handle_t client =
 		esp_websocket_client_init(&websocket_cfg);
@@ -92,12 +107,31 @@ void osj_websocket_start(void) {
 	client = start_client((char *)auth_b64, room);
 }
 
+void osj_websocket_restart(void) {
+	if (is_restarting) {
+		ESP_LOGW(TAG, "Restart already in progress, ignoring request.");
+		return;
+	}
+	is_restarting = true;
+
+	if (client != NULL) {
+		ESP_LOGI(TAG, "Stopping WebSocket Client for restart...");
+		esp_websocket_client_stop(client);
+		esp_websocket_client_destroy(client);
+		client = NULL;
+	}
+	osj_websocket_start();
+	is_restarting = false;
+}
+
 void osj_websocket_send_status(int channel, int status,
 							   const char *device_type) {
 	if (!client || !esp_websocket_client_is_connected(client))
 		return;
 
-	int device_id = (channel == 1) ? DEVICE_ID_CH_1 : DEVICE_ID_CH_2;
+	osj_config_lock();
+	int device_id = (channel == 1) ? atoi(sys_config.ch1DeviceNo) : atoi(sys_config.ch2DeviceNo);
+	osj_config_unlock();
 
 	cJSON *root = cJSON_CreateObject();
 	cJSON_AddNumberToObject(root, "id", device_id);
@@ -107,7 +141,7 @@ void osj_websocket_send_status(int channel, int status,
 	char *json_str = cJSON_PrintUnformatted(root);
 	if (json_str) {
 		esp_websocket_client_send_text(client, json_str, strlen(json_str),
-									   portMAX_DELAY);
+									   100 / portTICK_PERIOD_MS);
 		free(json_str);
 	}
 	cJSON_Delete(root);
@@ -117,7 +151,9 @@ void osj_websocket_send_log(int channel, const char *log_json) {
 	if (!client || !esp_websocket_client_is_connected(client))
 		return;
 
-	int device_id = (channel == 1) ? DEVICE_ID_CH_1 : DEVICE_ID_CH_2;
+	osj_config_lock();
+	int device_id = (channel == 1) ? atoi(sys_config.ch1DeviceNo) : atoi(sys_config.ch2DeviceNo);
+	osj_config_unlock();
 
 	cJSON *root = cJSON_CreateObject();
 	cJSON_AddStringToObject(root, "title", "Log");
@@ -133,7 +169,7 @@ void osj_websocket_send_log(int channel, const char *log_json) {
 	char *json_str = cJSON_PrintUnformatted(root);
 	if (json_str) {
 		esp_websocket_client_send_text(client, json_str, strlen(json_str),
-									   portMAX_DELAY);
+									   100 / portTICK_PERIOD_MS);
 		free(json_str);
 	}
 	cJSON_Delete(root);

@@ -6,7 +6,6 @@
 #include "nvs_flash.h"
 #include <stdio.h>
 
-#include "common_defs.h"
 #include "laundry_core.h"
 #include "osj_gpio.h"
 #include "osj_http.h"
@@ -33,6 +32,6 @@ void app_main(void) {
 	osj_websocket_start();
 
 	ESP_LOGI(TAG, "[Step 4] Launching Core Logic Task...");
-	xTaskCreate(laundry_core_task, "laundry_core", 4096, NULL, 5, NULL);
+	xTaskCreate(laundry_core_task, "laundry_core", 6144, NULL, 5, NULL);
 	ESP_LOGI(TAG, "System Boot Complete. Entering Idle Loop.");
 }
