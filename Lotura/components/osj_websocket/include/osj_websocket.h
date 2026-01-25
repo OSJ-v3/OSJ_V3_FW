@@ -5,6 +5,7 @@
  * @brief 웹소켓 클라이언트를 시작한다.
  */
 void osj_websocket_start(void);
+void osj_websocket_restart(void);
 
 /**
  * @brief 특정 채널의 상태를 서버로 전송한다.

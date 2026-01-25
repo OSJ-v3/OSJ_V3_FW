@@ -78,6 +78,8 @@ void osj_nvs_set_str(const char *key, const char *value) {
         else if (strcmp(key, "roomNo") == 0) strncpy(sys_config.roomNo, value, sizeof(sys_config.roomNo));
         else if (strcmp(key, "authId") == 0) strncpy(sys_config.authId, value, sizeof(sys_config.authId));
         else if (strcmp(key, "authPasswd") == 0) strncpy(sys_config.authPasswd, value, sizeof(sys_config.authPasswd));
+        else if (strcmp(key, "ch1DeviceNo") == 0) strncpy(sys_config.ch1DeviceNo, value, sizeof(sys_config.ch1DeviceNo));
+        else if (strcmp(key, "ch2DeviceNo") == 0) strncpy(sys_config.ch2DeviceNo, value, sizeof(sys_config.ch2DeviceNo));
         osj_config_unlock();
     }
 	nvs_close(my_handle);

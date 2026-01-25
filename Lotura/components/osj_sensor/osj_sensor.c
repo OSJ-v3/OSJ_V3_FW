@@ -52,7 +52,7 @@ void osj_sensor_init(void) {
 }
 
 float osj_sensor_get_rms(int channel) {
-	int samples = 1480;
+	int samples = 300;
 	double sum_sq = 0;
 	int val;
 	adc_channel_t adc_channel = (channel == 1) ? ADC_CHANNEL_7 : ADC_CHANNEL_6;
