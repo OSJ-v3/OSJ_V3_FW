@@ -347,6 +347,7 @@ static esp_err_t update_post_handler(httpd_req_t *req) {
             return ESP_FAIL;
         }
         total_received += received;
+        vTaskDelay(pdMS_TO_TICKS(1)); // Feed watchdog and allow scheduler to breathe
     }
 
     if (received < 0 && received != HTTPD_SOCK_ERR_TIMEOUT) {

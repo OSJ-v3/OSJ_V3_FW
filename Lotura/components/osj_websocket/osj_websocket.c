@@ -56,7 +56,7 @@ static void websocket_event_handler(void *handler_args, esp_event_base_t base,
 
 static esp_websocket_client_handle_t
 start_client(const char *auth_b64, const char *room) {
-	char headers[512];
+	static char headers[512];
 	
 	osj_config_lock();
 	int device_id = atoi(sys_config.ch1DeviceNo);
@@ -81,12 +81,12 @@ start_client(const char *auth_b64, const char *room) {
 
 	websocket_cfg.crt_bundle_attach = esp_crt_bundle_attach;
 
-	esp_websocket_client_handle_t client =
+	esp_websocket_client_handle_t new_client =
 		esp_websocket_client_init(&websocket_cfg);
-	esp_websocket_register_events(client, WEBSOCKET_EVENT_ANY,
+	esp_websocket_register_events(new_client, WEBSOCKET_EVENT_ANY,
 								  websocket_event_handler, (void *)0);
-	esp_websocket_client_start(client);
-	return client;
+	esp_websocket_client_start(new_client);
+	return new_client;
 }
 
 void osj_websocket_start(void) {

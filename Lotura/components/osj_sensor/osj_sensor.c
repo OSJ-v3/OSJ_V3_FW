@@ -7,6 +7,8 @@
 #include "esp_log.h"
 #include "freertos/FreeRTOS.h"
 #include "freertos/task.h"
+#include "freertos/timers.h"
+#include "driver/pulse_cnt.h"
 #include "gpio_definitions.h"
 #include "osj_gpio.h"
 #include <math.h>
@@ -17,24 +19,71 @@
 static volatile uint32_t flow_freq_1 = 0;
 static volatile uint32_t flow_freq_2 = 0;
 
+static pcnt_unit_handle_t pcnt_unit_1 = NULL;
+static pcnt_unit_handle_t pcnt_unit_2 = NULL;
+static int16_t last_count_1 = 0;
+static int16_t last_count_2 = 0;
+
+static void pcnt_poll_timer_cb(TimerHandle_t xTimer) {
+    if (!pcnt_unit_1 || !pcnt_unit_2) return;
+    
+    int count1 = 0, count2 = 0;
+    pcnt_unit_get_count(pcnt_unit_1, &count1);
+    pcnt_unit_get_count(pcnt_unit_2, &count2);
+
+    int16_t c1 = (int16_t)count1;
+    int16_t c2 = (int16_t)count2;
+
+    flow_freq_1 += (uint16_t)(c1 - last_count_1);
+    flow_freq_2 += (uint16_t)(c2 - last_count_2);
+
+    last_count_1 = c1;
+    last_count_2 = c2;
+}
+
 static adc_oneshot_unit_handle_t adc1_handle;
 
-static void IRAM_ATTR flow_sensor_isr_handler_1(void *arg) { flow_freq_1++; }
-static void IRAM_ATTR flow_sensor_isr_handler_2(void *arg) { flow_freq_2++; }
-
 void osj_sensor_init(void) {
-	gpio_config_t io_conf = {};
-	io_conf.intr_type = GPIO_INTR_NEGEDGE;
-	io_conf.pin_bit_mask =
-		(1ULL << PIN_FLOW_SENSOR_1) | (1ULL << PIN_FLOW_SENSOR_2);
-	io_conf.mode = GPIO_MODE_INPUT;
-	io_conf.pull_up_en = 0;
-	io_conf.pull_down_en = 0;
-	gpio_config(&io_conf);
+    pcnt_unit_config_t unit_config = {
+        .high_limit = 32767,
+        .low_limit = -32768,
+    };
+    ESP_ERROR_CHECK(pcnt_new_unit(&unit_config, &pcnt_unit_1));
+    ESP_ERROR_CHECK(pcnt_new_unit(&unit_config, &pcnt_unit_2));
 
-	gpio_install_isr_service(0);
-	gpio_isr_handler_add(PIN_FLOW_SENSOR_1, flow_sensor_isr_handler_1, NULL);
-	gpio_isr_handler_add(PIN_FLOW_SENSOR_2, flow_sensor_isr_handler_2, NULL);
+    pcnt_glitch_filter_config_t filter_config = {
+        .max_glitch_ns = 1000,
+    };
+    pcnt_unit_set_glitch_filter(pcnt_unit_1, &filter_config);
+    pcnt_unit_set_glitch_filter(pcnt_unit_2, &filter_config);
+
+    pcnt_chan_config_t chan_config_1 = {
+        .edge_gpio_num = PIN_FLOW_SENSOR_1,
+        .level_gpio_num = -1,
+    };
+    pcnt_channel_handle_t pcnt_chan_1 = NULL;
+    ESP_ERROR_CHECK(pcnt_new_channel(pcnt_unit_1, &chan_config_1, &pcnt_chan_1));
+
+    pcnt_chan_config_t chan_config_2 = {
+        .edge_gpio_num = PIN_FLOW_SENSOR_2,
+        .level_gpio_num = -1,
+    };
+    pcnt_channel_handle_t pcnt_chan_2 = NULL;
+    ESP_ERROR_CHECK(pcnt_new_channel(pcnt_unit_2, &chan_config_2, &pcnt_chan_2));
+
+    ESP_ERROR_CHECK(pcnt_channel_set_edge_action(pcnt_chan_1, PCNT_CHANNEL_EDGE_ACTION_HOLD, PCNT_CHANNEL_EDGE_ACTION_INCREASE));
+    ESP_ERROR_CHECK(pcnt_channel_set_edge_action(pcnt_chan_2, PCNT_CHANNEL_EDGE_ACTION_HOLD, PCNT_CHANNEL_EDGE_ACTION_INCREASE));
+
+    ESP_ERROR_CHECK(pcnt_unit_enable(pcnt_unit_1));
+    ESP_ERROR_CHECK(pcnt_unit_clear_count(pcnt_unit_1));
+    ESP_ERROR_CHECK(pcnt_unit_start(pcnt_unit_1));
+
+    ESP_ERROR_CHECK(pcnt_unit_enable(pcnt_unit_2));
+    ESP_ERROR_CHECK(pcnt_unit_clear_count(pcnt_unit_2));
+    ESP_ERROR_CHECK(pcnt_unit_start(pcnt_unit_2));
+
+    TimerHandle_t pcnt_timer = xTimerCreate("pcnt_poll", pdMS_TO_TICKS(1000), pdTRUE, NULL, pcnt_poll_timer_cb);
+    xTimerStart(pcnt_timer, 0);
 
 	adc_oneshot_unit_init_cfg_t init_config1 = {
 		.unit_id = ADC_UNIT_1,

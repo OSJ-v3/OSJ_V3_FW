@@ -8,6 +8,7 @@
 #include "freertos/timers.h"
 #include "osj_nvs.h"
 #include <string.h>
+#include "esp_sntp.h"
 
 static const char *TAG = "OSJ_WIFI";
 static bool s_is_connected = false;
@@ -23,19 +24,47 @@ static void retry_timer_callback(TimerHandle_t xTimer) {
 #define DEFAULT_SSID "OSJ_WIFI"
 #define DEFAULT_PASS "12345678"
 
+static void start_softap(void) {
+    wifi_mode_t current_mode;
+    esp_wifi_get_mode(&current_mode);
+    if (current_mode == WIFI_MODE_APSTA || current_mode == WIFI_MODE_AP) {
+        return; // Already in AP mode
+    }
+
+    ESP_LOGW(TAG, "Enabling SoftAP fallback for provisioning...");
+    esp_wifi_set_mode(WIFI_MODE_APSTA);
+    
+    wifi_config_t ap_config = {
+        .ap = {
+            .ssid = DEFAULT_SSID,
+            .ssid_len = strlen(DEFAULT_SSID),
+            .channel = 1,
+            .password = DEFAULT_PASS,
+            .max_connection = 4,
+            .authmode = WIFI_AUTH_WPA2_PSK
+        },
+    };
+    esp_wifi_set_config(WIFI_IF_AP, &ap_config);
+}
+
 static void event_handler(void *arg, esp_event_base_t event_base,
 						  int32_t event_id, void *event_data) {
 	if (event_base == WIFI_EVENT && event_id == WIFI_EVENT_STA_START) {
-		esp_wifi_connect();
+        wifi_config_t config;
+        esp_wifi_get_config(WIFI_IF_STA, &config);
+        if (strlen((char*)config.sta.ssid) > 0) {
+		    esp_wifi_connect();
+        }
 	} else if (event_base == WIFI_EVENT &&
 			   event_id == WIFI_EVENT_STA_DISCONNECTED) {
 		s_is_connected = false;
-		if (s_retry_num < 10) {
+		if (s_retry_num < 5) {
 			esp_wifi_connect();
 			s_retry_num++;
 			ESP_LOGI(TAG, "retry to connect to the AP");
 		} else {
-			ESP_LOGI(TAG, "connect to the AP fail, starting retry timer");
+			ESP_LOGW(TAG, "connect to the AP fail, starting SoftAP & retry timer");
+            start_softap();
             if (s_retry_timer != NULL) {
                 xTimerStart(s_retry_timer, 0);
             }
@@ -45,6 +74,15 @@ static void event_handler(void *arg, esp_event_base_t event_base,
 		ESP_LOGI(TAG, "got ip:" IPSTR, IP2STR(&event->ip_info.ip));
 		s_retry_num = 0;
 		s_is_connected = true;
+
+		static bool sntp_inited = false;
+		if (!sntp_inited) {
+			ESP_LOGI(TAG, "Initializing SNTP for WSS certificate validation");
+			esp_sntp_setoperatingmode(ESP_SNTP_OPMODE_POLL);
+			esp_sntp_setservername(0, "pool.ntp.org");
+			esp_sntp_init();
+			sntp_inited = true;
+		}
 	}
 }
 
@@ -77,19 +115,19 @@ void osj_wifi_init(void) {
 	osj_nvs_get_str("apSsid", ssid, sizeof(ssid), "");
 	osj_nvs_get_str("apPasswd", pass, sizeof(pass), "");
 
+	ESP_ERROR_CHECK(esp_wifi_set_mode(WIFI_MODE_STA));
+
 	if (strlen(ssid) > 0) {
 		strncpy((char *)wifi_config.sta.ssid, ssid,
 				sizeof(wifi_config.sta.ssid));
 		strncpy((char *)wifi_config.sta.password, pass,
 				sizeof(wifi_config.sta.password));
+        ESP_ERROR_CHECK(esp_wifi_set_config(WIFI_IF_STA, &wifi_config));
 	} else {
-		ESP_LOGW(TAG,
-				 "No SSID in NVS, WiFi will not connect until configured.");
-		return;
+		ESP_LOGW(TAG, "No SSID in NVS, starting AP mode for provisioning.");
+        start_softap();
 	}
 
-	ESP_ERROR_CHECK(esp_wifi_set_mode(WIFI_MODE_STA));
-	ESP_ERROR_CHECK(esp_wifi_set_config(WIFI_IF_STA, &wifi_config));
 	ESP_ERROR_CHECK(esp_wifi_start());
 
 	ESP_LOGI(TAG, "WiFi init finished.");
